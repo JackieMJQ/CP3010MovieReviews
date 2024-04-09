@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import * as dotenv from 'dotenv' // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
 import bodyParser from 'body-parser'
+import mongoose from 'mongoose';
+import Customer from './customerModel.js';
 dotenv.config()
 
 const jsonParser = bodyParser.json()
@@ -16,6 +18,7 @@ console.log(__dirname);
 
 const app = express()
 const port = 8000
+app.use(express.json());
 //here is a change
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, '../build')));
@@ -29,29 +32,60 @@ app.get(/^(?!\/api).+/, (req, res) => {
   res.sendFile(path.join(__dirname, '../build/index.html'))
 });
 
-/*const movieData = JSON.parse(fs.readFileSync('./movies.json'));
-console.log(movieData);
-/*let movieData = [
-    {"title":"Terminator 2"},
-    {"title":"Rocky IV"},
-    {"title":"Titanic"},
-    {"title":"Die Hard"}
-];*/
+// const movieData = JSON.parse(fs.readFileSync('./movies.json'));
+// console.log(movieData);
+// let movieData = [
+//     {"title":"Terminator 2"},
+//     {"title":"Rocky IV"},
+//     {"title":"Titanic"},
+//     {"title":"Die Hard"}
+// ];
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_CONNECT, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+});
+
+const db = mongoose.connection;
+
+db.on('error', console.error.bind(console, 'MongoDB connection error:'));
+db.once('open', () => console.log('Connected to MongoDB'));
 
 app.get('/api/movies', async (req, res) => {
-    
-    //res.json(movieData)
-    const client = new MongoClient(process.env.MONGO_CONNECT);
-    
-    await client.connect();
+  
+  //res.json(movieData)
+  const client = new MongoClient(process.env.MONGO_CONNECT);
+  
+  await client.connect();
 
-    const db = client.db('movies');
+  const db = client.db('movie');
 
-    const movieData = await db.collection('reviews').find({}).toArray();
-    console.log(movieData);
-    res.json(movieData);
-
+  const movieData = await db.collection('reviews').find({}).toArray();
+  console.log(movieData);
+  res.json(movieData);
 })
+
+// Add a new route to the backend which uses the mongoose connection named /api/addInfo. This route will accept json data called movies.json and save it to a collection named “Infos” using mongoose.
+app.post('/api/addInfo', async (req, res) => {
+  try {
+    const { name, movie, email } = req.body;
+
+    // Validate email presence
+    if (!email) {
+      return res.status(206).json({ error: '206 error: Email is required' });
+    }
+
+    const customer = new Customer({ name, movie, email });
+    await customer.save();
+
+    res.sendStatus(200);
+  } catch (err) {
+    console.error(err);
+    res.sendStatus(500);
+  }
+});
+
 
 app.post('/api/removeMovie', async (req, res) => {
    console.log(req.body.title);
